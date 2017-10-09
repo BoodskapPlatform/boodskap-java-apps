@@ -66,7 +66,7 @@ public class HttpSender extends AbstractSender {
 	}
 
 	@Override
-	protected void acknowledge(long corrId) throws Exception {
+	protected void acknowledge(long corrId, boolean acked) throws Exception {
 	}
 
 	@Override

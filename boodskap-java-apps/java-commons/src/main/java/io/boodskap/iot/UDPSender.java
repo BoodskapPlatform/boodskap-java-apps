@@ -36,22 +36,24 @@ import org.codehaus.jettison.json.JSONObject;
  * @see MqttSender
  * @see HttpSender
  */
-public class UDPSender extends AbstractSender implements Runnable  {
+public class UDPSender extends AbstractSender {
 	
 	public static int BUFFER_SIZE = 2048;
 	
 	protected final String udpHost;
 	protected final int udpPort;
+	protected final long udpHeartbeat;
 	
 	private DatagramSocket socket;
-	private ExecutorService exec = Executors.newSingleThreadExecutor();
+	private ExecutorService exec = Executors.newFixedThreadPool(2);
 
-	private Future<?> runner;
+	private Future<?> rF, pF;
 
-	public UDPSender(String udpHost, int udpPort, String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, MessageHandler handler) {
+	public UDPSender(String udpHost, int udpPort, long udpHeartbeat, String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, MessageHandler handler) {
 		super(domainKey, apiKey, deviceId, deviceModel, firmwareVersion, handler);
 		this.udpHost = udpHost;
 		this.udpPort = udpPort;
+		this.udpHeartbeat = udpHeartbeat;
 	}
 
 	@Override
@@ -81,7 +83,7 @@ public class UDPSender extends AbstractSender implements Runnable  {
 	}
 
 	@Override
-	protected void acknowledge(long corrId) throws Exception {
+	protected void acknowledge(long corrId, boolean acked) throws Exception {
 		
 		Map<String, Object> map = new HashMap<>();
 		map.put(P_DOMAIN_KEY, domainKey);
@@ -95,6 +97,7 @@ public class UDPSender extends AbstractSender implements Runnable  {
 		JSONObject header = new JSONObject(map);
 		JSONObject data = new JSONObject();
 		data.put(P_CORRELATION_ID, corrId);
+		data.put(P_ACK, acked ? 1 : 0);
 		JSONObject message = new JSONObject();
 		
 		message.put("header", header);
@@ -111,7 +114,8 @@ public class UDPSender extends AbstractSender implements Runnable  {
 	public void open()throws Exception{
 		if(!isConnected()) {
 			socket = new DatagramSocket(0);
-			runner = exec.submit(this);
+			pF = exec.submit(pinger);
+			rF = exec.submit(receiver);
 		}
 	}
 
@@ -128,36 +132,65 @@ public class UDPSender extends AbstractSender implements Runnable  {
 	 * @throws Exception
 	 */
 	public void close() throws Exception{
-		if(null != runner) {
-			runner.cancel(true);
-			runner = null;
+		
+		if(null != rF) {
+			rF.cancel(true);
+			rF= null;
 		}
+		
+		if(null != pF) {
+			pF.cancel(true);
+			pF= null;
+		}
+		
 		if(null != socket && isConnected()) {
 			socket.close();
 			socket = null;
 		}
 	}
-
-	@Override
-	public void run() {
+	
+	final Runnable receiver = new Runnable() {
 		
-		byte[] data = new byte[BUFFER_SIZE];
-		
-		while(!Thread.currentThread().isInterrupted()) {
-			try {
-				
-				DatagramPacket pkt = new DatagramPacket(data, data.length);
-				socket.receive(pkt);
-				
-				processData(pkt.getData(), pkt.getOffset(), pkt.getLength());
-				
-			} catch (Exception e) {
-				if(null != runner) {
-					e.printStackTrace();
+		@Override
+		public void run() {
+			byte[] data = new byte[BUFFER_SIZE];
+			
+			while(!Thread.currentThread().isInterrupted()) {
+				try {
+					
+					DatagramPacket pkt = new DatagramPacket(data, data.length);
+					socket.receive(pkt);
+					
+					processData(pkt.getData(), pkt.getOffset(), pkt.getLength());
+					
+				} catch (Exception e) {
+					if(null != rF) {
+						e.printStackTrace();
+					}
 				}
 			}
 		}
-	}
-	
+	};
+
+	final Runnable pinger = new Runnable() {
+		
+		@Override
+		public void run() {
+
+			while(!Thread.currentThread().isInterrupted()) {
+				try {
+					
+					publish(MSG_ACK, new HashMap<>());
+					
+					Thread.sleep(udpHeartbeat);
+					
+				} catch (Exception e) {
+					if(null != pF) {
+						e.printStackTrace();
+					}
+				}
+			}
+		}
+	};
 
 }

@@ -10,6 +10,13 @@
 	<name>boodskap-java-apps</name>
 	<url>http://maven.apache.org</url>
 
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<maven.compiler.target>1.8</maven.compiler.target>
+		<maven.compiler.debug>true</maven.compiler.debug>
+	</properties>
+
+
 	<modules>
 		<module>java-camera</module>
 		<module>java-commons</module>

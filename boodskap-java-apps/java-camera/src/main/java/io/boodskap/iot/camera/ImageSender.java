@@ -46,10 +46,10 @@ public class ImageSender {
 			publisher = new HttpSender(c.getHttpUrl(), c.getDomainKey(), c.getApiKey(), c.getDeviceId(), c.getDeviceModel(), c.getFirmwareVersion(), handler);
 			break;
 		case MQTT:
-			publisher = new MqttSender(c.getMqttUrl(), c.getDomainKey(), c.getApiKey(), c.getDeviceId(), c.getDeviceModel(), c.getFirmwareVersion(), handler);
+			publisher = new MqttSender(c.getMqttUrl(), c.getHeartbeat(), c.getDomainKey(), c.getApiKey(), c.getDeviceId(), c.getDeviceModel(), c.getFirmwareVersion(), handler);
 			break;
 		case UDP:
-			publisher = new UDPSender(c.getUdpHost(), c.getUdpPort(),  c.getDomainKey(), c.getApiKey(), c.getDeviceId(), c.getDeviceModel(), c.getFirmwareVersion(), handler);
+			publisher = new UDPSender(c.getUdpHost(), c.getUdpPort(), c.getHeartbeat(),  c.getDomainKey(), c.getApiKey(), c.getDeviceId(), c.getDeviceModel(), c.getFirmwareVersion(), handler);
 			break;
 		}
 	}
@@ -64,6 +64,10 @@ public class ImageSender {
 	
 	public void close() throws Exception {
 		publisher.close();
+	}
+	
+	public void reconfig() {
+		
 	}
 	
 	public void sendPicture(String cameraId, byte[] data) throws Exception {

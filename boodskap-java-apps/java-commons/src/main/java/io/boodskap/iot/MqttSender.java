@@ -18,6 +18,9 @@ package io.boodskap.iot;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
@@ -40,6 +43,7 @@ import org.eclipse.paho.client.mqttv3.MqttSecurityException;
  */
 public class MqttSender extends AbstractSender implements IMqttMessageListener {
 
+	protected final long heartbeat;
 	protected final String mqttUrl;
 	private final String clientId;
 	private final String userName;
@@ -48,16 +52,21 @@ public class MqttSender extends AbstractSender implements IMqttMessageListener {
 	private MqttClient mqtt;
 	private MqttConnectOptions opts;
 	
+	private ExecutorService exec = Executors.newFixedThreadPool(1);
+	private Future<?> pF;
+	
 	/**
 	 * @param mqttUrl <code> Ex: tcp://mqtt.boodskap.io</code>
+	 * @param heartbeat <code>heartbeat in milliseconds</code>
 	 * @param domainKey <code> You will get it from Boodskap Dashboard</code>
 	 * @param apiKey <code> You will get it from Boodskap Dashboard</code>
 	 * @param deviceId  <code> Your device id, ex: MyCamera, MyKitchenCamara, etc...</code>
 	 * @param deviceModel <code> Ex: RaspCAM, ArduCAM, etc...</code>
 	 * @param firmwareVersion <code> Ex: 1.0.0, 0.0.7, etc...</code>
 	 */
-	public MqttSender(String mqttUrl, String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, MessageHandler handler) {
+	public MqttSender(String mqttUrl, long heartbeat, String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, MessageHandler handler) {
 		super(domainKey, apiKey, deviceId, deviceModel, firmwareVersion, handler);
+		this.heartbeat = heartbeat;
 		this.mqttUrl = mqttUrl;
 		clientId = String.format("DEV_%s", deviceId);
 		userName = String.format("DEV_%s", domainKey);
@@ -91,8 +100,12 @@ public class MqttSender extends AbstractSender implements IMqttMessageListener {
 		opts.setAutomaticReconnect(reconnect);
 		
 		mqtt = new MqttClient(mqttUrl, clientId);
+		mqtt.setManualAcks(false);
+		mqtt.setTimeToWait(3000);
 		mqtt.connect(opts);
 		mqtt.subscribe(getDeviceTopic(), this);
+		
+		pF = exec.submit(pinger);
 		
 	}
 	
@@ -109,6 +122,12 @@ public class MqttSender extends AbstractSender implements IMqttMessageListener {
 	 * @throws MqttException
 	 */
 	public void close() throws MqttException {
+		
+		if(null != pF) {
+			pF.cancel(true);
+			pF= null;
+		}
+		
 		if(null != mqtt && mqtt.isConnected()) {
 			mqtt.close();
 			mqtt = null;
@@ -126,10 +145,11 @@ public class MqttSender extends AbstractSender implements IMqttMessageListener {
 	}
 	
 	@Override
-	protected void acknowledge(long corrId) throws MqttPersistenceException, JSONException, MqttException {
+	protected void acknowledge(long corrId, boolean acked) throws MqttPersistenceException, JSONException, MqttException {
 		System.out.format("Acking corr-id:%d\n", corrId);
 		Map<String, Object> map = new HashMap<String, Object>();
 		map.put(P_CORRELATION_ID, corrId);
+		map.put(P_ACK, acked ? 1 : 0);
 		publish(2, map);
 	}
 
@@ -144,6 +164,17 @@ public class MqttSender extends AbstractSender implements IMqttMessageListener {
 	 * @throws MqttException
 	 */
 	public void sendMessage(int messageId, Map<String, Object> json, int qos, boolean retained) throws JSONException, MqttPersistenceException, MqttException {
+		switch(messageId) {
+		case MSG_PING:
+			System.out.format("Sending ping\n");
+			break;
+		case MSG_ACK:
+			System.out.format("Sending ack %s\n", json);
+			break;
+		default:
+			System.out.format("Sending message id:%d\n", messageId);
+			break;
+		}
 		JSONObject data = new JSONObject(json);
 		byte[] payload = data.toString().getBytes();
 		mqtt.publish(getTopic(messageId), payload, qos, retained);
@@ -219,5 +250,26 @@ public class MqttSender extends AbstractSender implements IMqttMessageListener {
 		byte[] raw = message.getPayload();
 		processData(raw, 0, raw.length);
 	}
+
+	final Runnable pinger = new Runnable() {
+		
+		@Override
+		public void run() {
+
+			while(!Thread.currentThread().isInterrupted()) {
+				try {
+					
+					publish(MSG_PING, new HashMap<>());
+					
+					Thread.sleep(heartbeat);
+					
+				} catch (Exception e) {
+					if(null != pF) {
+						e.printStackTrace();
+					}
+				}
+			}
+		}
+	};
 
 }

@@ -40,27 +40,54 @@ public class CameraStreamer implements Runnable {
 
 	private final CameraApplication app;
 	private final Webcam camera;
-	private State state = State.RUNNING;
+	private State state;
 	private CameraConfig config;
 	private long pauseTill;
 	private long lastAction;
 	
 	protected CameraStreamer(CameraApplication app, Webcam camera) {
+		
 		this.app = app;
 		this.camera = camera;
+		
+		switch(app.getConfig().getDefaultState()) {
+		case WAIT:
+			state = State.STOPPED;
+			break;
+		case RUN:
+		default:
+			state = State.RUNNING;
+			break;
+		}
 	}
 	
 	public void stop() {
 		state = State.STOPPED;
+		synchronized(this) {
+			notify();
+		}
+	}
+	
+	public void start() {
+		state = State.RUNNING;
+		synchronized(this) {
+			notify();
+		}
 	}
 	
 	public void pause(long millis) {
 		pauseTill = System.currentTimeMillis() + millis;
 		state = State.PAUSED;
+		synchronized(this) {
+			notify();
+		}
 	}
 	
 	public void shutdown() {
 		state = State.SHUTDOWN;
+		synchronized(this) {
+			notify();
+		}
 	}
 
 	public void run() {
@@ -70,41 +97,55 @@ public class CameraStreamer implements Runnable {
 			try {
 				
 				while(state == State.STOPPED) {
-					Thread.sleep(300);
-					continue;
-				}
-				
-				while(state == State.PAUSED) {
-					if((System.currentTimeMillis() - pauseTill) > 0) {
-						state = State.RUNNING;
-					}else {
-						Thread.sleep(300);
+					synchronized(this) {
+						System.out.format("Camera %s stopped, waiting...\n", camera.getName());
+						wait();
+						System.out.format("Camera %s started, running...\n", camera.getName());
 					}
 				}
 				
-				long interval = config.getMode() == Mode.SNAP ? config.getInterval() : (60 / config.getFramePerMinite());
-				
-				if((interval > 0) && ((System.currentTimeMillis() - lastAction) < interval)){
-					Thread.sleep(300);
-					continue;
+				while(state == State.PAUSED) {
+					long remaining = (pauseTill - System.currentTimeMillis()); 
+					if(remaining <= 0) {
+						state = State.RUNNING;
+					}else {
+						System.out.format("Camera %s paused, sleeping...\n", camera.getName());
+						Thread.sleep(remaining);
+						System.out.format("Camera %s started, running...\n", camera.getName());
+					}
 				}
 				
-				BufferedImage image = camera.getImage();
+				long interval = config.getMode() == Mode.SNAP ? config.getInterval() : (60000 / config.getFramePerMinite());
+				long remaining = (System.currentTimeMillis() - lastAction);
+				long wait = interval-remaining;
 				
-				if(null == image) {
-					throw new Exception("Unable to grab image, camera may have been stopped/disconnected");
+				if(lastAction > 0 && wait > 0){
+					Thread.sleep(wait);
 				}
 				
-				switch(config.getMode()) {
-				case SNAP:
-					app.sendSnap(camera, image);
-					break;
-				case STREAM:
-					app.sendStream(camera, image);
-					break;
+				synchronized(this) {
+					
+					BufferedImage image = camera.getImage();
+					
+					if(null == image) {
+						System.err.format("Unable to grab image, camera %S may have been closed/disconnected", camera.getName());
+						lastAction = System.currentTimeMillis();
+						pause(3000);
+						continue;
+					}
+					
+					switch(config.getMode()) {
+					case SNAP:
+						app.sendSnap(camera, image);
+						break;
+					case STREAM:
+						app.sendStream(camera, image);
+						break;
+					}
+					
+					lastAction = System.currentTimeMillis();
+					
 				}
-				
-				lastAction = System.currentTimeMillis();
 				
 			} catch (Exception e) {
 				

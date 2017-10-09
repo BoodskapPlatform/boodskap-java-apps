@@ -38,10 +38,13 @@ public abstract class AbstractSender {
 	protected static final String P_DEVICE_MODEL = "dmdl";
 	protected static final String P_FIRMWARE_VERSION = "fwver";
 	protected static final String P_CORRELATION_ID = "corrid";
+	protected static final String P_ACK = "acked";
 	
+	public static final int MSG_PING = 1;
+	public static final int MSG_ACK = 2;
 
-	protected final String domainKey;
-	protected final String apiKey;
+	protected String domainKey;
+	protected String apiKey;
 	protected final String deviceId;
 	protected final String deviceModel;
 	protected final String firmwareVersion;
@@ -78,9 +81,10 @@ public abstract class AbstractSender {
 	/**
 	 * Acknowledges the received packet
 	 * @param corrId
+	 * @param acked <code>true for success else false</code>
 	 * @throws Exception
 	 */
-	protected abstract void acknowledge(long corrId)throws Exception;
+	protected abstract void acknowledge(long corrId, boolean acked)throws Exception;
 	
 	/**
 	 * Open connection with server channel
@@ -99,6 +103,22 @@ public abstract class AbstractSender {
 	 */
 	public abstract void close() throws Exception;
 	
+	public String getDomainKey() {
+		return domainKey;
+	}
+
+	public void setDomainKey(String domainKey) {
+		this.domainKey = domainKey;
+	}
+
+	public String getApiKey() {
+		return apiKey;
+	}
+
+	public void setApiKey(String apiKey) {
+		this.apiKey = apiKey;
+	}
+
 	/**
 	 * Processed the data received, auto acks with the platform
 	 * @param raw
@@ -111,27 +131,65 @@ public abstract class AbstractSender {
 		try {
 			
 			JSONObject json = new JSONObject(new String(raw, offset, length));
-			System.out.format("Message Received: %s", json);
+			System.out.format("Command Received: %s\n", json);
 			
 			JSONObject header = json.getJSONObject("header");
 			JSONObject data = json.getJSONObject("data");
 			
+			long corrId = header.getLong(P_CORRELATION_ID);
+			boolean acked = false;
+			boolean shouldAck = true;
+			
 			try {
-				long corrId = header.getLong(P_CORRELATION_ID);
-				acknowledge(corrId);
+				
+				String model = null;
+				String fwver = null;
+				int messageId = header.getInt(P_MESSAGE_ID);
+				
+				
+				if(!header.isNull(P_DEVICE_MODEL)) {
+					model = header.getString(P_DEVICE_MODEL);
+				}
+				
+				if(!header.isNull(P_FIRMWARE_VERSION)) {
+					fwver = header.getString(P_FIRMWARE_VERSION);
+				}
+				
+				if(messageId > 100) { //Domain messages
+					
+					acked = handler.handleMessage(
+							header.getString(P_DOMAIN_KEY), 
+							header.getString(P_API_KEY), 
+							header.getString(P_DEVICE_ID), 
+							model, 
+							fwver,
+							messageId,
+							data
+							);
+					
+				}else { //Platform messages
+					
+					switch(messageId) {
+					case MSG_PING:
+						acked = true;
+						break;
+					case MSG_ACK:
+						shouldAck = false;
+						break;
+					}
+				}
+
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
-			
-			handler.handleMessage(
-					header.getString(P_DOMAIN_KEY), 
-					header.getString(P_API_KEY), 
-					header.getString(P_DEVICE_ID), 
-					header.getString(P_DEVICE_MODEL), 
-					header.getString(P_FIRMWARE_VERSION),
-					header.getInt(P_MESSAGE_ID),
-					data
-					);
+
+			try {
+				if(shouldAck) {
+					acknowledge(corrId, acked);
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

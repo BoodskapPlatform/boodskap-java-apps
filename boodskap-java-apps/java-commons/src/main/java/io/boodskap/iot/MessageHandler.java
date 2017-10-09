@@ -25,5 +25,5 @@ import org.codehaus.jettison.json.JSONObject;
  *
  */
 public interface MessageHandler{
-	public void handleMessage(String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, int messageId, JSONObject data);
+	public boolean handleMessage(String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, int messageId, JSONObject data);
 }
