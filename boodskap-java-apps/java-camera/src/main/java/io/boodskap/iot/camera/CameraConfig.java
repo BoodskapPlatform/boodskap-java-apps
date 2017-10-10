@@ -39,6 +39,8 @@ import com.github.sarxos.webcam.WebcamResolution;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import io.boodskap.iot.PublishChannel;
+
 /**
  * Camera Application Configuration, stored in ${user.home}/.camera/config.json
  * 
@@ -112,12 +114,6 @@ public class CameraConfig implements Serializable{
 		INIT
 	}
 	
-	public static enum Publisher{
-		MQTT,
-		UDP,
-		HTTP
-	}
-	
 	public static enum State{
 		RUN,
 		WAIT
@@ -132,7 +128,7 @@ public class CameraConfig implements Serializable{
 	private long initWait = 5000;
 	private Mode mode = Mode.SNAP;
 	private State defaultState = State.RUN;
-	private Publisher publisher = Publisher.MQTT;
+	private PublishChannel publisher = PublishChannel.MQTT;
 	private long interval = 750;
 	private int framePerMinite = 60;
 	private String imageFormat = "jpeg";
@@ -314,11 +310,11 @@ public class CameraConfig implements Serializable{
 		this.imageQuality = imageQuality;
 	}
 
-	public Publisher getPublisher() {
+	public PublishChannel getPublisher() {
 		return publisher;
 	}
 
-	public void setPublisher(Publisher publisher) {
+	public void setPublisher(PublishChannel publisher) {
 		this.publisher = publisher;
 	}
 
