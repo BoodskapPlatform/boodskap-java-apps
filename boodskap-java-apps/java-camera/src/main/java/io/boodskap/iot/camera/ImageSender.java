@@ -33,8 +33,8 @@ import io.boodskap.iot.UDPSender;
  */
 public class ImageSender {
 	
-	public static final int MSG_ID_IMAGE = 50000;
-	public static final int MSG_ID_VIDEO = 50001;
+	public static final int MSG_ID_IMAGE = 500000000;
+	public static final int MSG_ID_VIDEO = 500000001;
 	
 	protected final CameraConfig config;
 	
