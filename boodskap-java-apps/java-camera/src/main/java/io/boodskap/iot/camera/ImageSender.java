@@ -33,6 +33,9 @@ import io.boodskap.iot.UDPSender;
  */
 public class ImageSender {
 	
+	public static final int MSG_ID_IMAGE = 50000;
+	public static final int MSG_ID_VIDEO = 50001;
+	
 	protected final CameraConfig config;
 	
 	protected AbstractSender publisher;
@@ -80,7 +83,7 @@ public class ImageSender {
 			json.put("data", data);
 			json.put("format", config.getImageFormat());
 			json.put("cameraid", cameraId);
-			publisher.publish(3000, json);
+			publisher.publish(MSG_ID_IMAGE, json);
 			break;
 		case MQTT:
 			
@@ -101,7 +104,7 @@ public class ImageSender {
 			json.put("data", data);
 			json.put("format", config.getImageFormat());
 			json.put("cameraid", cameraId);
-			publisher.publish(3001, json);
+			publisher.publish(MSG_ID_VIDEO, json);
 			break;
 		case MQTT:
 			
