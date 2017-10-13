@@ -12,7 +12,7 @@
 	</parent>
 
 	<artifactId>java-commons</artifactId>
-	<name>java-commons</name>
+	<name>commons</name>
 	<url>http://maven.apache.org</url>
 	
 	<repositories>
