@@ -10,7 +10,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 public class StaticQueue {
 	
-	private static final StaticQueue instance = new StaticQueue();
+	private static final Map<String, StaticQueue> instances = new HashMap<>();
 	
 	private final Map<String, Boolean[]> configs = new HashMap<>();
 	private final Map<String, Queue<Object>> queues = new HashMap<>();
@@ -19,12 +19,26 @@ public class StaticQueue {
 	private StaticQueue() {
 	}
 
-	public static final StaticQueue get() {
-		return instance;
+	public static final StaticQueue get(String domainKey, String deviceId) {
+		
+		String id = String.format("%s.%s", domainKey, deviceId);
+		
+		StaticQueue q = instances.get(id);
+		
+		if(null == q) {
+			q = new StaticQueue();
+			instances.put(id, q);
+		}
+		
+		return q;
 	}
 	
 	public boolean has(String queue) {
 		return configs.containsKey(queue);
+	}
+	
+	public void init(String queue) {
+		init(queue, false, false);
 	}
 	
 	public void init(String queue, boolean refill, boolean reverse) {
@@ -52,6 +66,10 @@ public class StaticQueue {
 			refill(queue);
 		}
 		return val;
+	}
+	
+	public boolean isEmpty(String queue) {
+		return getQueue(queue).isEmpty();
 	}
 
 	protected Queue<Object> getQueue(String queue){
