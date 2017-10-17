@@ -27,6 +27,9 @@ public class GroovyScriptJob implements Job {
 			
 			SimulatorConfig sCfg = (SimulatorConfig) ctx.getJobDetail().getJobDataMap().get("scfg");
 			
+			DomainConfig dCfg = DomainConfigs.get().getConfiguration(sCfg.getDomainConfig());
+			
+			
 			handler = GroovyScheduler.get().handler(sCfg.getId());
 			
 			handler.message(Type.CLIENT, "Executing...");
@@ -34,7 +37,7 @@ public class GroovyScriptJob implements Job {
 			Map<String, Object> map = new HashMap<>();
 			
 			map.put("boodskap", GroovyScheduler.get().transmitter(sCfg.getId()));
-			map.put("Q", StaticQueue.get());
+			map.put("Q", StaticQueue.get(dCfg.getDomainKey(), sCfg.getDeviceId()));
 			
 		    final Binding binding = new Binding(map); // allow parameters in the script
 		    final GroovyShell shell = new GroovyShell(binding); // create shall
