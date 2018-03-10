@@ -21,6 +21,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
@@ -41,7 +43,7 @@ import org.eclipse.paho.client.mqttv3.MqttSecurityException;
  * @see HttpSender
  * @see UDPSender
  */
-public class MqttSender extends AbstractSender implements IMqttMessageListener {
+public class MqttSender extends AbstractPublisher implements IMqttMessageListener {
 
 	protected final long heartbeat;
 	protected final String mqttUrl;
@@ -52,6 +54,7 @@ public class MqttSender extends AbstractSender implements IMqttMessageListener {
 	private MqttClient mqtt;
 	private MqttConnectOptions opts;
 	
+	private LinkedBlockingQueue<Map<String,Object>> acks = new LinkedBlockingQueue<>();
 	private ExecutorService exec = Executors.newFixedThreadPool(1);
 	private Future<?> pF;
 	
@@ -93,7 +96,7 @@ public class MqttSender extends AbstractSender implements IMqttMessageListener {
 	public void open(boolean reconnect) throws MqttSecurityException, MqttException {
 		
 		opts = new MqttConnectOptions();
-		opts.setKeepAliveInterval(60);
+		opts.setKeepAliveInterval(30);
 		opts.setCleanSession(true);
 		opts.setUserName(userName);
 		opts.setPassword(password);
@@ -146,11 +149,10 @@ public class MqttSender extends AbstractSender implements IMqttMessageListener {
 	
 	@Override
 	protected void acknowledge(long corrId, boolean acked) throws MqttPersistenceException, JSONException, MqttException {
-		System.out.format("Acking corr-id:%d\n", corrId);
 		Map<String, Object> map = new HashMap<String, Object>();
 		map.put(P_CORRELATION_ID, corrId);
 		map.put(P_ACK, acked ? 1 : 0);
-		publish(2, map);
+		acks.offer(map);
 	}
 
 	/**
@@ -172,7 +174,7 @@ public class MqttSender extends AbstractSender implements IMqttMessageListener {
 			System.out.format("Sending ack %s\n", json);
 			break;
 		default:
-			System.out.format("Sending message id:%d\n", messageId);
+			System.out.format("Sending message id:%d %s\n", messageId, json);
 			break;
 		}
 		JSONObject data = new JSONObject(json);
@@ -253,15 +255,30 @@ public class MqttSender extends AbstractSender implements IMqttMessageListener {
 
 	final Runnable pinger = new Runnable() {
 		
+		long lastSent = 0;
+		
 		@Override
 		public void run() {
 
 			while(!Thread.currentThread().isInterrupted()) {
 				try {
 					
-					publish(MSG_PING, new HashMap<>());
+					Map<String, Object> adata = acks.poll(2, TimeUnit.SECONDS);
 					
-					Thread.sleep(heartbeat);
+					if(null != adata) {
+						
+						publish(MSG_ACK, adata);
+						lastSent = System.currentTimeMillis();
+						
+					}else {
+						
+						if((System.currentTimeMillis()-lastSent) >= heartbeat) {
+							publish(MSG_PING, new HashMap<>());
+							lastSent = System.currentTimeMillis();
+						}
+						
+					}
+					
 					
 				} catch (Exception e) {
 					if(null != pF) {

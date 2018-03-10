@@ -28,6 +28,11 @@
 
 	<dependencies>
 		<dependency>
+			<groupId>io.boodskap.iot</groupId>
+			<artifactId>java-commons</artifactId>
+			<version>1.0.0</version>
+		</dependency>
+		<dependency>
 			<groupId>org.quartz-scheduler</groupId>
 			<artifactId>quartz</artifactId>
 			<version>${quartz-version}</version>

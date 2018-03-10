@@ -22,14 +22,14 @@ public class SimulatorConfigs {
 	}
 
 	public static boolean exists() {
-		File file = new File(App.CONFIG_PATH, "simulators.json");
+		File file = new File(SimulatorApplication.CONFIG_PATH, "simulators.json");
 		return file.exists();
 	}
 
 	public static SimulatorConfigs get() throws FileNotFoundException {
 		
 		if(exists() && instance.simulators.isEmpty()) {
-			File file = new File(App.CONFIG_PATH, "simulators.json");
+			File file = new File(SimulatorApplication.CONFIG_PATH, "simulators.json");
 			JsonReader reader = new JsonReader(new FileReader(file));
 			SimulatorConfigs cfg = new Gson().fromJson(reader, SimulatorConfigs.class);
 			
@@ -41,7 +41,7 @@ public class SimulatorConfigs {
 	}
 	
 	public void save() throws IOException {
-		File file = new File(App.CONFIG_PATH, "simulators.json");
+		File file = new File(SimulatorApplication.CONFIG_PATH, "simulators.json");
 		String json = new GsonBuilder().setPrettyPrinting().create().toJson(this);
 		FileWriter writer = new FileWriter(file);
 		writer.write(json);

@@ -36,7 +36,7 @@ import org.codehaus.jettison.json.JSONObject;
  * @see MqttSender
  * @see HttpSender
  */
-public class UDPSender extends AbstractSender {
+public class UDPSender extends AbstractPublisher {
 	
 	public static int BUFFER_SIZE = 2048;
 	
@@ -180,7 +180,7 @@ public class UDPSender extends AbstractSender {
 			while(!Thread.currentThread().isInterrupted()) {
 				try {
 					
-					publish(MSG_ACK, new HashMap<>());
+					publish(MSG_PING, new HashMap<>());
 					
 					Thread.sleep(udpHeartbeat);
 					

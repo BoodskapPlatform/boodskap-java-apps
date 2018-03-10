@@ -18,8 +18,6 @@ package io.boodskap.iot.camera;
 
 import java.awt.image.BufferedImage;
 
-import com.github.sarxos.webcam.Webcam;
-
 import io.boodskap.iot.camera.CameraConfig.Mode;
 
 /**
@@ -39,13 +37,12 @@ public class CameraStreamer implements Runnable {
 	}
 
 	private final CameraApplication app;
-	private final Webcam camera;
+	private final Camera camera;
 	private State state;
-	private CameraConfig config;
 	private long pauseTill;
 	private long lastAction;
 	
-	protected CameraStreamer(CameraApplication app, Webcam camera) {
+	protected CameraStreamer(CameraApplication app, Camera camera) {
 		
 		this.app = app;
 		this.camera = camera;
@@ -92,6 +89,8 @@ public class CameraStreamer implements Runnable {
 
 	public void run() {
 		
+		final CameraConfig config = app.getConfig();
+		
 		while(state != State.SHUTDOWN && state != State.TERMINATED && !Thread.currentThread().isInterrupted()) {
 			
 			try {
@@ -136,10 +135,10 @@ public class CameraStreamer implements Runnable {
 					
 					switch(config.getMode()) {
 					case SNAP:
-						app.sendSnap(camera, image);
+						app.sendSnap(camera.getName(), image);
 						break;
 					case STREAM:
-						app.sendStream(camera, image);
+						app.sendStream(camera.getName(), image);
 						break;
 					}
 					
@@ -159,15 +158,6 @@ public class CameraStreamer implements Runnable {
 		
 		System.out.format("Camera %s stopped, state:%s\n", camera.getName(), state);
 		
-		app.streamingStopped(this, camera);
-	}
-
-	public CameraConfig getConfig() {
-		return config;
-	}
-
-	public void setConfig(CameraConfig config) {
-		this.config = config;
 	}
 
 }

@@ -1,22 +1,5 @@
-/*******************************************************************************
- * Copyright (C) 2017 Boodskap Inc
- * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- ******************************************************************************/
 package io.boodskap.iot.camera;
 
-import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -42,26 +25,16 @@ import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
 
 import com.github.sarxos.webcam.Webcam;
-import com.github.sarxos.webcam.WebcamDiscoveryEvent;
-import com.github.sarxos.webcam.WebcamDiscoveryListener;
 import com.google.gson.Gson;
+import com.hopding.jrpicam.exceptions.FailedToRunRaspistillException;
 
 import io.boodskap.iot.MessageHandler;
-import io.boodskap.iot.camera.CameraConfig.DiscoveryMode;
-import net.coobird.thumbnailator.Thumbnails;
+import io.boodskap.iot.camera.rpi.RPiCamera;
 
-/**
- * Main entry point for the Camera application
- * 
- * @author Jegan Vincent
- *
- */
-public class CameraApplication implements WebcamDiscoveryListener, MessageHandler {
+public class CameraApplication implements MessageHandler {
 	
-	private static CameraApplication instance = new CameraApplication();
-	
-	protected static final List<String> FORMATS = new ArrayList<String>();
-	
+	private static final CameraApplication instance = new CameraApplication();
+
 	static {
 		
 		Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
@@ -70,11 +43,6 @@ public class CameraApplication implements WebcamDiscoveryListener, MessageHandle
 			}
 		}));
 	}
-	
-	private final Map<Webcam, CameraStreamer> cameras = new HashMap<Webcam, CameraStreamer>();
-	private final ExecutorService exec = Executors.newCachedThreadPool();
-	private CameraConfig config;
-	private ImageSender publisher;
 	
 	/**
 	 * Commands
@@ -85,65 +53,39 @@ public class CameraApplication implements WebcamDiscoveryListener, MessageHandle
 	public static final int CMD_STOP = 1002;
 	public static final int CMD_CONFIG = 1003;
 	
+	private final Map<Camera, CameraStreamer> cameras = new HashMap<Camera, CameraStreamer>();
+	private final ExecutorService exec = Executors.newCachedThreadPool();
+	
+	private CameraConfig config;
+	private ImageSender publisher;
+
 	private CameraApplication() {
 	}
 	
-	private void shutdown() {
-		try{for(CameraStreamer cs : cameras.values()) {cs.shutdown();}}catch(Exception ex) {}
-		try{instance.exec.shutdownNow();}catch(Exception ex) {}
-		try{synchronized(instance) {instance.notify();}}catch(Exception ex) {}
-		try{publisher.close();}catch(Exception ex) {}
-		try{cameras.clear();}catch(Exception ex) {ex.printStackTrace();}
-	}
-	
-	private void restart() {
-		
-		try{for(CameraStreamer cs : cameras.values()) {cs.shutdown();}}catch(Exception ex) {ex.printStackTrace();}
-		try{publisher.close();}catch(Exception ex) {ex.printStackTrace();}
-		try{cameras.clear();}catch(Exception ex) {ex.printStackTrace();}
-		
-		try{
-			init(true);
-		}catch(Exception ex) {
-			ex.printStackTrace();
-		}
-	}
-	
-	private void init(boolean reinit) throws Exception {
-		
-		if(!CameraConfig.exists()) {
-			CameraConfig.create();
-		}
-		
-		config = CameraConfig.load();
-		
+	private void start(CameraConfig config) throws FailedToRunRaspistillException {
+
+		this.config = config;
 		publisher = new ImageSender(config, this);
 		
 		try {
 			publisher.open();
-		}catch(Exception ex) {
-			ex.printStackTrace();
+		} catch (Exception e1) {
+			e1.printStackTrace();
 		}
-		
-		if(!reinit && config.getDiscoverMode() == DiscoveryMode.AUTO) {
-			System.out.println("Running in auto discovery mode");
-			Webcam.addDiscoveryListener(instance);
-			try {
-				Webcam.getWebcams(10, TimeUnit.SECONDS);
-			} catch (Exception e) {
-			}
-		}else {
-			
-			if(reinit) {
-				System.out.println("re-detecting cameras...");
-			}else {
-				System.out.println("Running in manual discovery mode, detecting cameras...");
-			}
-			
+
+		switch (config.getCameraType()) {
+		case RPI: {
+			RPiCamera camera = new RPiCamera(config);
+			CameraStreamer streamer = new CameraStreamer(this, camera);
+			exec.submit(streamer);
+		}
+			break;
+		case USB: {
+
 			List<Webcam> list = new ArrayList<>();
 			
 			try {
-				List<Webcam> tlist = Webcam.getWebcams(config.getInitWait(), TimeUnit.MILLISECONDS);
+				List<Webcam> tlist = Webcam.getWebcams(config.getUsb().getInitWait(), TimeUnit.MILLISECONDS);
 				list.addAll(tlist);
 			} catch (Exception e) {
 				if(e instanceof TimeoutException) {
@@ -157,128 +99,41 @@ public class CameraApplication implements WebcamDiscoveryListener, MessageHandle
 				System.err.println("No cameras detected!");
 			}
 			
-			for(Webcam camera : list) {
-				initCamera(camera);
+			for(Webcam cam : list) {
+				USBCamera camera = new USBCamera(config, cam);
+				CameraStreamer streamer = new CameraStreamer(this, camera);
+				exec.submit(streamer);
 			}
-
+			
 		}
-		
-		if(!reinit) {
-			exec.submit(new Runnable() {
-				public void run() {
-					try {
-						
-						System.out.println("Camera appliction running...");
-						
-						while(!Thread.currentThread().isInterrupted()) {
-							synchronized(this) {
-								wait();
-							}
-						}
-					} catch (Exception e) {
-						if(!(e instanceof InterruptedException)) {
-							e.printStackTrace();
-						}
-					}
-					System.out.println("Camera appliction stopped.");
-				}
-			});
-		}
-		
-		
-	}
-	
-	public CameraConfig getConfig() {
-		return config;
-	}
-
-	public void webcamFound(WebcamDiscoveryEvent event) {
-		initCamera(event.getWebcam());
-	}
-	
-	protected void initCamera(Webcam camera) {
-		
-		System.out.format("Webcam:%s found\n", camera.getName());
-		
-		try {Thread.sleep(300);}catch(Exception ex) {}
-		
-		if(cameras.containsKey(camera)) {
-			System.err.format("Webcam %s already running...\n", camera.getName());
-			return;
-		}
-		
-		Dimension size = camera.getViewSize();
-		
-		System.out.format("Webcam:%s view-size:[%d X %d]\n", camera.getName(), (int)size.getWidth(), (int)size.getHeight());
-		
-		Dimension[] sizes = camera.getViewSizes();
-		if(null != sizes && sizes.length >0) {
-			for(Dimension d : sizes) {
-				int w = (int)d.getWidth();
-				int h = (int)d.getHeight();
-				System.out.format("Webcam:%s supported view-size:[%d X %d] resolution:%s\n", camera.getName(),  w, h, CameraConfig.RESOLUTIONS.get(String.format("%d.%d", w, h)));
-			}
-		}
-		
-		sizes = camera.getCustomViewSizes();
-		if(null != sizes && sizes.length >0) {
-			for(Dimension d : sizes) {
-				int w = (int)d.getWidth();
-				int h = (int)d.getHeight();
-				System.out.format("Webcam:%s custom view-size:[%d X %d] resolution:%s\n", camera.getName(), w, h, CameraConfig.RESOLUTIONS.get(String.format("%d.%d", w, h)));
-			}
-		}
-		
-		System.out.format("Starting Webcam:%s ...\n", camera.getName());
-		
-		CameraStreamer streamer = new CameraStreamer(this, camera);
-		streamer.setConfig(config);
-		cameras.put(camera, streamer);
-		exec.submit(streamer);
-
-	}
-
-	public void webcamGone(WebcamDiscoveryEvent event) {
-		System.out.format("Webcam:%s disappeared\n", event.getWebcam().getName());
-		CameraStreamer streamer = cameras.remove(event.getWebcam());
-		if(null != streamer) {
-			streamer.shutdown();
+			break;
 		}
 	}
 	
-	protected void sendStream(Webcam webcam, BufferedImage image) {
+	protected void sendStream(String cameraId, BufferedImage image) {
 		try {
 			byte[] data = convertToImage(image);
-			publisher.sendVideo(webcam.getName(), data);
+			publisher.sendVideo(cameraId, data);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 
-	protected void sendSnap(Webcam webcam, BufferedImage image) {
+	protected void sendSnap(String cameraId, BufferedImage image) {
 		try {
 			byte[] data = convertToImage(image);
-			publisher.sendPicture(webcam.getName(), data);
+			publisher.sendPicture(cameraId, data);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
 
-	public void streamingStopped(CameraStreamer streamer, Webcam webcam) {
-		cameras.remove(webcam);
-	}
-
-	protected byte[] convertToImage(BufferedImage oimage) throws IOException {
-		
-		BufferedImage image = Thumbnails.of(oimage)
-		        .size(200, 200)
-		        .outputQuality(0.3)
-		        .asBufferedImage();
+	protected byte[] convertToImage(BufferedImage image) throws IOException {
 		
 		ByteArrayOutputStream compressed = new ByteArrayOutputStream();
 		ImageOutputStream outputStream = new MemoryCacheImageOutputStream(compressed);
 		
-		ImageWriter imageWriter = ImageIO.getImageWritersBySuffix(config.getImageFormat()).next();
+		ImageWriter imageWriter = ImageIO.getImageWritersBySuffix(config.getImageFormat().name().toLowerCase()).next();
 		ImageWriteParam jpgWriteParam = imageWriter.getDefaultWriteParam();
 		
 		try {
@@ -295,7 +150,7 @@ public class CameraApplication implements WebcamDiscoveryListener, MessageHandle
 		return imageData;
 	}
 	
-	public boolean handleMessage(String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, int messageId, JSONObject data) {
+	public boolean handleMessage(String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, long corrId, int messageId, JSONObject data) {
 		
 		boolean acked = false;
 		
@@ -330,17 +185,38 @@ public class CameraApplication implements WebcamDiscoveryListener, MessageHandle
 		Gson gson = new Gson();
 		CameraConfig cfg = gson.fromJson(data.toString(), CameraConfig.class);
 		cfg.validate();
-		cfg.save();
-		restart();
+		cfg.save(CameraConfig.class);
+		
+		restart(cfg);
 		
 		return true;
+	}
+
+	private void shutdown() {
+		try{for(CameraStreamer cs : cameras.values()) {cs.shutdown();}}catch(Exception ex) {}
+		try{exec.shutdownNow();}catch(Exception ex) {}
+		try{publisher.close();}catch(Exception ex) {}
+		try{cameras.clear();}catch(Exception ex) {ex.printStackTrace();}
+	}
+	
+	private void restart(CameraConfig config) {
+		
+		try{for(CameraStreamer cs : cameras.values()) {cs.shutdown();}}catch(Exception ex) {ex.printStackTrace();}
+		try{publisher.close();}catch(Exception ex) {ex.printStackTrace();}
+		try{cameras.clear();}catch(Exception ex) {ex.printStackTrace();}
+		
+		try{
+			start(config);
+		}catch(Exception ex) {
+			ex.printStackTrace();
+		}
 	}
 
 	private boolean handleStop(JSONObject data) {
 		
 		Set<CameraStreamer> streamers = new HashSet<>();
 		
-		for(Map.Entry<Webcam, CameraStreamer> me : cameras.entrySet()) {
+		for(Map.Entry<Camera, CameraStreamer> me : cameras.entrySet()) {
 			
 			if(!data.isNull(me.getKey().getName())) {
 				streamers.add(me.getValue());
@@ -364,7 +240,7 @@ public class CameraApplication implements WebcamDiscoveryListener, MessageHandle
 		
 		long pauseFor = data.getLong("pause");
 		
-		for(Map.Entry<Webcam, CameraStreamer> me : cameras.entrySet()) {
+		for(Map.Entry<Camera, CameraStreamer> me : cameras.entrySet()) {
 			
 			if(!data.isNull(me.getKey().getName())) {
 				streamers.add(me.getValue());
@@ -386,7 +262,7 @@ public class CameraApplication implements WebcamDiscoveryListener, MessageHandle
 		
 		Set<CameraStreamer> streamers = new HashSet<>();
 		
-		for(Map.Entry<Webcam, CameraStreamer> me : cameras.entrySet()) {
+		for(Map.Entry<Camera, CameraStreamer> me : cameras.entrySet()) {
 			
 			if(!data.isNull(me.getKey().getName())) {
 				streamers.add(me.getValue());
@@ -404,10 +280,22 @@ public class CameraApplication implements WebcamDiscoveryListener, MessageHandle
 		return !streamers.isEmpty();
 	}
 
+	public CameraConfig getConfig() {
+		return config;
+	}
+
 	public static void main(String[] args) {
 		
 		try {
-			CameraApplication.instance.init(false);
+
+			if(!CameraConfig.exists(CameraConfig.class)) {
+				CameraConfig.create();
+			}
+			
+			CameraConfig config = CameraConfig.load(CameraConfig.class);
+			
+			CameraApplication.instance.start(config);
+			
 		} catch (Exception e) {
 			if(e instanceof IllegalArgumentException) {
 				System.err.println(e.getMessage());
@@ -416,6 +304,8 @@ public class CameraApplication implements WebcamDiscoveryListener, MessageHandle
 			}
 			System.exit(-1);
 		}
+		
+		
 	}
 
 }

@@ -32,7 +32,7 @@ import com.mashape.unirest.http.Unirest;
  * @see MqttSender
  * @see UDPSender
  */
-public class HttpSender extends AbstractSender {
+public class HttpSender extends AbstractPublisher {
 	
 	protected final String httpUrl;
 

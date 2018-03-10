@@ -34,7 +34,7 @@ public class GPIOApplication implements MessageHandler {
 	}
 
 	private GPIOConfig config;
-	private MessageSender sender;
+	private GPIOMessagePublisher sender;
 	
 	private GPIOApplication() {
 		
@@ -44,13 +44,13 @@ public class GPIOApplication implements MessageHandler {
 		
 		try {
 			
-			if(!GPIOConfig.exists()) {
+			if(!GPIOConfig.exists(GPIOConfig.class)) {
 				GPIOConfig.create();
 			}
 			
-			config = GPIOConfig.load();
+			config = GPIOConfig.load(GPIOConfig.class);
 			
-			sender = new MessageSender(config, this);
+			sender = new GPIOMessagePublisher(config, config.getDeviceModel(), config.getFirmwareVersion(), this);
 			
 			try {
 				sender.open();
@@ -80,7 +80,7 @@ public class GPIOApplication implements MessageHandler {
 		}
 	}
 
-	public MessageSender getSender() {
+	public GPIOMessagePublisher getSender() {
 		return sender;
 	}
 
@@ -102,9 +102,7 @@ public class GPIOApplication implements MessageHandler {
 	}
 
 	@Override
-	public boolean handleMessage(String domainKey, String apiKey, String deviceId, String deviceModel,
-			String firmwareVersion, int messageId, JSONObject data) {
-		// TODO Auto-generated method stub
+	public boolean handleMessage(String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, long corrId, int messageId, JSONObject data) {
 		return false;
 	}
 }

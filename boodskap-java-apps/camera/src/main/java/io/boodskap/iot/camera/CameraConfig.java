@@ -17,10 +17,6 @@
 package io.boodskap.iot.camera;
 
 import java.awt.Dimension;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,32 +32,43 @@ import javax.imageio.ImageWriter;
 import com.github.sarxos.webcam.Webcam;
 import com.github.sarxos.webcam.WebcamDriver;
 import com.github.sarxos.webcam.WebcamResolution;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 
-import io.boodskap.iot.PublishChannel;
+import io.boodskap.iot.BaseConfig;
 
 /**
- * Camera Application Configuration, stored in ${user.home}/.camera/config.json
+ * Camera Application Configuration, stored in ${user.home}/.boodskap/CameraConfig.json
  * 
  * @author Jegan Vincent
  *
  */
-public class CameraConfig implements Serializable{
+public class CameraConfig extends BaseConfig implements Serializable{
 	
 	private static final long serialVersionUID = 2838776972406711700L;
 
-	static final File home = new File(String.format("%s%s.boodskap%scamera", System.getProperty("user.home"), File.separator, File.separator));
-	static final File file = new File(home, "config.json");
-	
 	protected static final Map<String, WebcamResolution> RESOLUTIONS = new HashMap<String, WebcamResolution>();
-	
 	protected static final List<String> FORMATS = new ArrayList<String>();
 	
+	private static final String DEVICE_MODEL = "BSKP-JCAM";
+	private static final String FIRMWARE_VERSION = "1.0.0";
+	
+	private Mode mode = Mode.SNAP;
+	private State defaultState = State.RUN;
+	private long interval = 750;
+	private int framePerMinite = 60;
+	private ImageEncoding imageFormat = ImageEncoding.JPG;
+	private String streamFormat = "mp4";
+	private int imageWidth = 200;
+	private int imageHeight = 200;
+	private int imageQuality = 75;
+	private CameraType cameraType = CameraType.USB;
+	private USBCameraConfig usb = new USBCameraConfig();
+	private RPICameraConfig rpi = new RPICameraConfig();
+	private Map<String, WebcamResolution> cameraResolutions = new HashMap<String, WebcamResolution>();
+	private List<WebcamResolution> availableResolutions = new ArrayList<WebcamResolution>();
+	private List<String> availableFormats = new ArrayList<String>();
+
 	static {
 		
-		try{home.mkdirs();}catch(Exception ex) {}
-
 		ImageIO.scanForPlugins();
 		
 		boolean driverLoaded = false;
@@ -119,59 +126,53 @@ public class CameraConfig implements Serializable{
 		WAIT
 	}
 	
-	private String domainKey="";
-	private String apiKey="";
-	private String deviceId="";
-	private String deviceModel="BSKP-JCAM";
-	private String firmwareVersion="1.0.0";
-	private DiscoveryMode discoverMode = DiscoveryMode.AUTO;
-	private long initWait = 5000;
-	private Mode mode = Mode.SNAP;
-	private State defaultState = State.RUN;
-	private PublishChannel publisher = PublishChannel.MQTT;
-	private long interval = 750;
-	private int framePerMinite = 60;
-	private String imageFormat = "jpeg";
-	private String streamFormat = "mp4";
-	private int imageWidth = 200;
-	private int imageHeight = 200;
-	private float imageQuality = 0.5F;
-	private String mqttUrl = "tcp://mqtt.boodskap.io:1883";
-	private String udpHost = "udp.boodskap.io";
-	private int udpPort = 5555;
-	private long heartbeat = 30000;
-	private String httpUrl = "http://api.boodskap.io";
-	private Map<String, WebcamResolution> cameraResolutions = new HashMap<String, WebcamResolution>();
-	private List<WebcamResolution> availableResolutions = new ArrayList<WebcamResolution>();
-	private List<String> availableFormats = new ArrayList<String>();
-
+	public static enum CameraType{
+		USB,
+		RPI
+	}
+	
 	protected CameraConfig() {
 	}
 
 	public void validate() throws Exception {
 		
-		if(null == mqttUrl || mqttUrl.trim().equals("")) throw new IllegalArgumentException("mqttUrl required");
-		if(null == udpHost || udpHost.trim().equals("")) throw new IllegalArgumentException("udpHost required");
-		if(udpPort <= 0) throw new IllegalArgumentException("udpPort must be > 0");
-		if(heartbeat < 1000) throw new IllegalArgumentException("heartbeat must be >= 1000");
-		if(null == httpUrl || httpUrl.trim().equals("")) throw new IllegalArgumentException("httpUrl required");
-		if(null == domainKey || domainKey.trim().equals("")) throw new IllegalArgumentException("domainKey required");
-		if(null == apiKey || apiKey.trim().equals("")) throw new IllegalArgumentException("apiKey required");
-		if(null == deviceId || deviceId.trim().equals("")) throw new IllegalArgumentException("deviceId required");
-		if(null == deviceModel || deviceModel.trim().equals("deviceModel")) throw new IllegalArgumentException("deviceModel required");
-		if(null == firmwareVersion || firmwareVersion.trim().equals("")) throw new IllegalArgumentException("firmwareVersion required");
+		super.validate();
+		
 		if(null == mode) throw new IllegalArgumentException("mode required");
-		if(null == publisher) throw new IllegalArgumentException("publisher required");
 		if(interval < 10) throw new IllegalArgumentException("interval must be >= 10");
 		if(framePerMinite > 2500) throw new IllegalArgumentException("framePerMinite must be <= 2500");
-		if(null == imageFormat || imageFormat.trim().equals("")) throw new IllegalArgumentException("imageFormat required");
+		if(null == imageFormat) throw new IllegalArgumentException("imageFormat required");
 		if(null == streamFormat || streamFormat.trim().equals("")) throw new IllegalArgumentException("streamFormat required");
 		
-		Iterator<ImageWriter> iter = ImageIO.getImageWritersBySuffix(imageFormat);
+		Iterator<ImageWriter> iter = ImageIO.getImageWritersBySuffix(imageFormat.name().toLowerCase());
 		if(!iter.hasNext()) throw new IllegalArgumentException(String.format("No image writer found for image format: %s", imageFormat));
 		while(iter.hasNext()) {
 			System.out.format("Writer for Image Format %s: %s\n", imageFormat, iter.next().getClass());
 		}
+	}
+
+	public CameraType getCameraType() {
+		return cameraType;
+	}
+
+	public void setCameraType(CameraType cameraType) {
+		this.cameraType = cameraType;
+	}
+
+	public USBCameraConfig getUsb() {
+		return usb;
+	}
+
+	public void setUsb(USBCameraConfig usb) {
+		this.usb = usb;
+	}
+
+	public RPICameraConfig getRpi() {
+		return rpi;
+	}
+
+	public void setRpi(RPICameraConfig rpi) {
+		this.rpi = rpi;
 	}
 
 	public Mode getMode() {
@@ -198,11 +199,11 @@ public class CameraConfig implements Serializable{
 		this.framePerMinite = framePerMinite;
 	}
 
-	public String getImageFormat() {
+	public ImageEncoding getImageFormat() {
 		return imageFormat;
 	}
 
-	public void setImageFormat(String imageFormat) {
+	public void setImageFormat(ImageEncoding imageFormat) {
 		this.imageFormat = imageFormat;
 	}
 
@@ -214,52 +215,12 @@ public class CameraConfig implements Serializable{
 		this.streamFormat = streamFormat;
 	}
 
-	public String getMqttUrl() {
-		return mqttUrl;
-	}
-
-	public void setMqttUrl(String mqttUrl) {
-		this.mqttUrl = mqttUrl;
-	}
-
-	public String getDomainKey() {
-		return domainKey;
-	}
-
-	public void setDomainKey(String domainKey) {
-		this.domainKey = domainKey;
-	}
-
-	public String getApiKey() {
-		return apiKey;
-	}
-
-	public void setApiKey(String apiKey) {
-		this.apiKey = apiKey;
-	}
-
-	public String getDeviceId() {
-		return deviceId;
-	}
-
-	public void setDeviceId(String deviceId) {
-		this.deviceId = deviceId;
-	}
-
 	public String getDeviceModel() {
-		return deviceModel;
-	}
-
-	public void setDeviceModel(String deviceModel) {
-		this.deviceModel = deviceModel;
+		return DEVICE_MODEL;
 	}
 
 	public String getFirmwareVersion() {
-		return firmwareVersion;
-	}
-
-	public void setFirmwareVersion(String firmwareVersion) {
-		this.firmwareVersion = firmwareVersion;
+		return FIRMWARE_VERSION;
 	}
 
 	public Map<String, WebcamResolution> getCameraResolutions() {
@@ -302,50 +263,13 @@ public class CameraConfig implements Serializable{
 		this.imageHeight = imageHeight;
 	}
 
-	public float getImageQuality() {
+	public int getImageQuality() {
 		return imageQuality;
 	}
 
-	public void setImageQuality(float imageQuality) {
+	public void setImageQuality(int imageQuality) {
 		this.imageQuality = imageQuality;
 	}
-
-	public PublishChannel getPublisher() {
-		return publisher;
-	}
-
-	public void setPublisher(PublishChannel publisher) {
-		this.publisher = publisher;
-	}
-
-	public String getUdpHost() {
-		return udpHost;
-	}
-
-	public void setUdpHost(String udpHost) {
-		this.udpHost = udpHost;
-	}
-
-	public int getUdpPort() {
-		return udpPort;
-	}
-
-	public void setUdpPort(int udpPort) {
-		this.udpPort = udpPort;
-	}
-
-	public String getHttpUrl() {
-		return httpUrl;
-	}
-
-	public void setHttpUrl(String httpUrl) {
-		this.httpUrl = httpUrl;
-	}
-
-	public static boolean exists() {
-		return file.exists();
-	}
-
 
 	public State getDefaultState() {
 		return defaultState;
@@ -355,31 +279,8 @@ public class CameraConfig implements Serializable{
 		this.defaultState = defaultState;
 	}
 
-	public DiscoveryMode getDiscoverMode() {
-		return discoverMode;
-	}
-
-	public void setDiscoverMode(DiscoveryMode discoverMode) {
-		this.discoverMode = discoverMode;
-	}
-
-	public long getInitWait() {
-		return initWait;
-	}
-
-	public void setInitWait(long initWait) {
-		this.initWait = initWait;
-	}
-
-	public long getHeartbeat() {
-		return heartbeat;
-	}
-
-	public void setHeartbeat(long heartbeat) {
-		this.heartbeat = heartbeat;
-	}
-
 	public static void create() throws Exception {
+		
 		CameraConfig nconfig = new CameraConfig(); 
 		
 		System.out.println("Creating default configuration, please wait...");
@@ -410,26 +311,8 @@ public class CameraConfig implements Serializable{
 			}
 		}
 		
-		String json = new GsonBuilder().setPrettyPrinting().create().toJson(nconfig);
-		FileWriter fw = new FileWriter(file);
-		fw.write(json);
-		fw.flush();
-		fw.close();
-	}
-
-	public static CameraConfig load() throws Exception {
-		System.out.format("Loading config from %s\n", file.getAbsolutePath());
-		CameraConfig config = new Gson().fromJson(new FileReader(file), CameraConfig.class);
-		config.validate();
-		return config;
-	}
-	
-	public void save() throws IOException {
-		String json = new GsonBuilder().setPrettyPrinting().create().toJson(this);
-		FileWriter writer = new FileWriter(file);
-		writer.write(json);
-		writer.flush();
-		writer.close();
+		nconfig.save(CameraConfig.class);
+		
 	}
 
 }

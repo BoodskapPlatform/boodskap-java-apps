@@ -19,7 +19,7 @@ package io.boodskap.iot.camera;
 import java.util.HashMap;
 import java.util.Map;
 
-import io.boodskap.iot.AbstractSender;
+import io.boodskap.iot.AbstractPublisher;
 import io.boodskap.iot.HttpSender;
 import io.boodskap.iot.MessageHandler;
 import io.boodskap.iot.MqttSender;
@@ -38,7 +38,7 @@ public class ImageSender {
 	
 	protected final CameraConfig config;
 	
-	protected AbstractSender publisher;
+	protected AbstractPublisher publisher;
 
 	public ImageSender(CameraConfig c, MessageHandler handler) {
 		
@@ -81,13 +81,13 @@ public class ImageSender {
 		default:
 			Map<String, Object> json = new HashMap<>();
 			json.put("data", data);
-			json.put("format", config.getImageFormat());
+			json.put("format", config.getImageFormat().name().toLowerCase());
 			json.put("cameraid", cameraId);
 			publisher.publish(MSG_ID_IMAGE, json);
 			break;
 		case MQTT:
 			
-			((MqttSender)publisher).sendPicture(cameraId, true, config.getImageFormat(), data, 0, false);
+			((MqttSender)publisher).sendPicture(cameraId, true, config.getImageFormat().name().toLowerCase(), data, 0, false);
 			
 			break;
 		}
@@ -102,7 +102,7 @@ public class ImageSender {
 		default:
 			Map<String, Object> json = new HashMap<>();
 			json.put("data", data);
-			json.put("format", config.getImageFormat());
+			json.put("format", config.getImageFormat().name().toLowerCase());
 			json.put("cameraid", cameraId);
 			publisher.publish(MSG_ID_VIDEO, json);
 			break;

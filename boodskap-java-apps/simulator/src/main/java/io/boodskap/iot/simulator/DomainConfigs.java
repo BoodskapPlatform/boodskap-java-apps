@@ -25,7 +25,7 @@ public class DomainConfigs {
 	}
 	
 	public static boolean exists() {
-		File file = new File(App.CONFIG_PATH, "domains.json");
+		File file = new File(SimulatorApplication.CONFIG_PATH, "domains.json");
 		return file.exists();
 	}
 
@@ -33,7 +33,7 @@ public class DomainConfigs {
 		
 		if(instance.configurations.isEmpty() && exists()) {
 			
-			File file = new File(App.CONFIG_PATH, "domains.json");
+			File file = new File(SimulatorApplication.CONFIG_PATH, "domains.json");
 			JsonReader reader = new JsonReader(new FileReader(file));
 			DomainConfigs cfg =  new Gson().fromJson(reader, DomainConfigs.class);
 			
@@ -63,7 +63,7 @@ public class DomainConfigs {
 	}
 	
 	public void save() throws IOException {
-		File file = new File(App.CONFIG_PATH, "domains.json");
+		File file = new File(SimulatorApplication.CONFIG_PATH, "domains.json");
 		String json = new GsonBuilder().setPrettyPrinting().create().toJson(this);
 		FileWriter writer = new FileWriter(file);
 		writer.write(json);

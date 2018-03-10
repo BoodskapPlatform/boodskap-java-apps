@@ -14,6 +14,7 @@ import org.quartz.TriggerKey;
 import org.quartz.impl.StdSchedulerFactory;
 
 import io.boodskap.iot.simulator.impl.HttpTransmitter;
+import io.boodskap.iot.simulator.impl.MqttTransmitter;
 import io.boodskap.iot.simulator.impl.UDPTransmitter;
 
 public class GroovyScheduler {
@@ -90,9 +91,11 @@ public class GroovyScheduler {
 			case UDP:
 				t = new UDPTransmitter();
 				break;
+			case MQTT:
+				t = new MqttTransmitter();
+				break;
 			case HTTP:
 			case COAP:
-			case MQTT:
 			default:
 				t = new HttpTransmitter();
 				break;
