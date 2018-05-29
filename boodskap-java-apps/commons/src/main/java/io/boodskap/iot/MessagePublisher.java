@@ -36,7 +36,7 @@ public class MessagePublisher<T extends BaseConfig> {
 		
 		switch(config.getPublisher()) {
 		case HTTP:
-			publisher = new HttpSender(c.getHttpUrl(), c.getDomainKey(), c.getApiKey(), c.getDeviceId(), deviceModel, firmwareVersion, handler);
+			publisher = new HttpSender(c.getHttpUrl(), c.getHeartbeat(), c.getDomainKey(), c.getApiKey(), c.getDeviceId(), deviceModel, firmwareVersion, handler);
 			break;
 		case MQTT:
 			publisher = new MqttSender(c.getMqttUrl(), c.getHeartbeat(), c.getDomainKey(), c.getApiKey(), c.getDeviceId(), deviceModel, firmwareVersion, handler);
@@ -65,6 +65,10 @@ public class MessagePublisher<T extends BaseConfig> {
 	
 	public void publish(int messageId, Map<String, Object> json) throws Exception {
 		publisher.publish(messageId, json);
+	}
+
+	public long getLastAckedTime() {
+		return publisher.getLastAckedTime();
 	}
 	
 

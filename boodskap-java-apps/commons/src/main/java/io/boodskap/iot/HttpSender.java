@@ -36,13 +36,13 @@ public class HttpSender extends AbstractPublisher {
 	
 	protected final String httpUrl;
 
-	public HttpSender(String httpUrl, String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, MessageHandler handler) {
-		super(domainKey, apiKey, deviceId, deviceModel, firmwareVersion, handler);
+	public HttpSender(String httpUrl, long heartbeat, String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, MessageHandler handler) {
+		super(domainKey, apiKey, deviceId, deviceModel, firmwareVersion, heartbeat, handler);
 		this.httpUrl = httpUrl;
 	}
 
 	@Override
-	public void publish(int messageId, Map<String, Object> json) throws Exception {
+	protected void doPublish(int messageId, Map<String, Object> json) throws Exception {
 		
 		JSONObject jobj = new JSONObject(json);
 		
@@ -66,11 +66,7 @@ public class HttpSender extends AbstractPublisher {
 	}
 
 	@Override
-	protected void acknowledge(long corrId, boolean acked) throws Exception {
-	}
-
-	@Override
-	public void open() throws Exception {
+	public void doOpen() throws Exception {
 	}
 
 	@Override
@@ -79,7 +75,7 @@ public class HttpSender extends AbstractPublisher {
 	}
 
 	@Override
-	public void close() throws Exception {
+	protected void doClose() throws Exception {
 	}
 
 }

@@ -16,13 +16,7 @@
  ******************************************************************************/
 package io.boodskap.iot;
 
-import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
@@ -32,7 +26,9 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
 import org.eclipse.paho.client.mqttv3.MqttMessage;
 import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
-import org.eclipse.paho.client.mqttv3.MqttSecurityException;
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * MQTT Sender implementation
@@ -45,7 +41,8 @@ import org.eclipse.paho.client.mqttv3.MqttSecurityException;
  */
 public class MqttSender extends AbstractPublisher implements IMqttMessageListener {
 
-	protected final long heartbeat;
+	private static final Logger LOG = LoggerFactory.getLogger(MqttSender.class);
+
 	protected final String mqttUrl;
 	private final String clientId;
 	private final String userName;
@@ -53,10 +50,6 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 	
 	private MqttClient mqtt;
 	private MqttConnectOptions opts;
-	
-	private LinkedBlockingQueue<Map<String,Object>> acks = new LinkedBlockingQueue<>();
-	private ExecutorService exec = Executors.newFixedThreadPool(1);
-	private Future<?> pF;
 	
 	/**
 	 * @param mqttUrl <code> Ex: tcp://mqtt.boodskap.io</code>
@@ -68,8 +61,7 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 	 * @param firmwareVersion <code> Ex: 1.0.0, 0.0.7, etc...</code>
 	 */
 	public MqttSender(String mqttUrl, long heartbeat, String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, MessageHandler handler) {
-		super(domainKey, apiKey, deviceId, deviceModel, firmwareVersion, handler);
-		this.heartbeat = heartbeat;
+		super(domainKey, apiKey, deviceId, deviceModel, firmwareVersion, heartbeat, handler);
 		this.mqttUrl = mqttUrl;
 		clientId = String.format("DEV_%s", deviceId);
 		userName = String.format("DEV_%s", domainKey);
@@ -79,10 +71,9 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 	
 	/**
 	 * Open connection with MQTT server channel with auto reconnect on
-	 * @throws MqttException 
-	 * @throws MqttSecurityException 
+	 * @throws Exception 
 	 */
-	public void open() throws MqttSecurityException, MqttException {
+	public void doOpen() throws Exception {
 		open(true);
 	}
 
@@ -90,11 +81,10 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 	 * 
 	 * Open connection with Boodskap MQTT Server
 	 * @param reconnect <pre>true to reconnect automatically on connection failures</pre>
-	 * @throws MqttSecurityException
-	 * @throws MqttException
+	 * @throws Exception 
 	 */
-	public void open(boolean reconnect) throws MqttSecurityException, MqttException {
-		
+	public void open(boolean reconnect) throws Exception {
+		//TODO make all these configurable
 		opts = new MqttConnectOptions();
 		opts.setKeepAliveInterval(30);
 		opts.setCleanSession(true);
@@ -102,13 +92,11 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 		opts.setPassword(password);
 		opts.setAutomaticReconnect(reconnect);
 		
-		mqtt = new MqttClient(mqttUrl, clientId);
+		mqtt = new MqttClient(mqttUrl, clientId, new MemoryPersistence());
 		mqtt.setManualAcks(false);
 		mqtt.setTimeToWait(3000);
 		mqtt.connect(opts);
 		mqtt.subscribe(getDeviceTopic(), this);
-		
-		pF = exec.submit(pinger);
 		
 	}
 	
@@ -124,14 +112,11 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 	 * Closes the connection
 	 * @throws MqttException
 	 */
-	public void close() throws MqttException {
-		
-		if(null != pF) {
-			pF.cancel(true);
-			pF= null;
-		}
+	protected void doClose() throws MqttException {
 		
 		if(null != mqtt && mqtt.isConnected()) {
+			try{mqtt.disconnect(3000);}catch(Exception ex) {LOG.warn("DISCONNECT", ex);}
+			try{if(mqtt.isConnected()) mqtt.disconnectForcibly();}catch(Exception ex) {LOG.warn("DISCONNECT-FORCED", ex);}
 			mqtt.close();
 			mqtt = null;
 		}
@@ -143,18 +128,10 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 	 * @param json <pre>A Map containing message fields</pre>
 	 * @throws Exception
 	 */
-	public void publish(int messageId, Map<String, Object> json) throws MqttPersistenceException, JSONException, MqttException {
+	protected void doPublish(int messageId, Map<String, Object> json) throws MqttPersistenceException, JSONException, MqttException {
 		sendMessage(messageId, json, 0, false);
 	}
 	
-	@Override
-	protected void acknowledge(long corrId, boolean acked) throws MqttPersistenceException, JSONException, MqttException {
-		Map<String, Object> map = new HashMap<String, Object>();
-		map.put(P_CORRELATION_ID, corrId);
-		map.put(P_ACK, acked ? 1 : 0);
-		acks.offer(map);
-	}
-
 	/**
 	 * Send a well formatted Boodskap message
 	 * @param messageId <pre>Message ID defined in Boodskap Platform</pre>
@@ -168,13 +145,13 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 	public void sendMessage(int messageId, Map<String, Object> json, int qos, boolean retained) throws JSONException, MqttPersistenceException, MqttException {
 		switch(messageId) {
 		case MSG_PING:
-			System.out.format("Sending ping\n");
+			LOG.info("Sending ping");
 			break;
 		case MSG_ACK:
-			System.out.format("Sending ack %s\n", json);
+			LOG.info("Sending ack {}", json);
 			break;
 		default:
-			System.out.format("Sending message id:%d %s\n", messageId, json);
+			LOG.info("Sending message id:{} {}", messageId, json);
 			break;
 		}
 		JSONObject data = new JSONObject(json);
@@ -198,7 +175,7 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 			cameraId = cameraId.replaceAll("/", "_");
 		}
 		final String topic = getSnapTopic(cameraId, live, format);
-		System.out.format("sending image size: %d, topic:%s\n", data.length, topic);
+		LOG.info("sending image size: {}, topic:{}", data.length, topic);
 		mqtt.publish(topic, data, qos, retained);
 	}
 
@@ -219,7 +196,7 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 			cameraId = cameraId.replaceAll("/", "_");
 		}
 		final String topic = getStreamTopic(cameraId, live, format);
-		System.out.format("sending video size: %d, topic: %s\n", data.length, topic);
+		LOG.info("sending video size: {}, topic: {}", data.length, topic);
 		mqtt.publish(topic, data, qos, retained);
 	}
 	
@@ -252,41 +229,5 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 		byte[] raw = message.getPayload();
 		processData(raw, 0, raw.length);
 	}
-
-	final Runnable pinger = new Runnable() {
-		
-		long lastSent = 0;
-		
-		@Override
-		public void run() {
-
-			while(!Thread.currentThread().isInterrupted()) {
-				try {
-					
-					Map<String, Object> adata = acks.poll(2, TimeUnit.SECONDS);
-					
-					if(null != adata) {
-						
-						publish(MSG_ACK, adata);
-						lastSent = System.currentTimeMillis();
-						
-					}else {
-						
-						if((System.currentTimeMillis()-lastSent) >= heartbeat) {
-							publish(MSG_PING, new HashMap<>());
-							lastSent = System.currentTimeMillis();
-						}
-						
-					}
-					
-					
-				} catch (Exception e) {
-					if(null != pF) {
-						e.printStackTrace();
-					}
-				}
-			}
-		}
-	};
 
 }

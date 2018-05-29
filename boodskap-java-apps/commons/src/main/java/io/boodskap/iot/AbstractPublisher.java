@@ -16,9 +16,20 @@
  ******************************************************************************/
 package io.boodskap.iot;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
+import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A abstract implementation transceive packets from and to Boodkskap platform
@@ -30,6 +41,8 @@ import org.codehaus.jettison.json.JSONObject;
  *
  */
 public abstract class AbstractPublisher {
+
+	private static final Logger LOG = LoggerFactory.getLogger(AbstractPublisher.class);
 
 	protected static final String P_DOMAIN_KEY = "key";
 	protected static final String P_API_KEY = "api";
@@ -43,12 +56,22 @@ public abstract class AbstractPublisher {
 	public static final int MSG_PING = 1;
 	public static final int MSG_ACK = 2;
 
+	protected LinkedBlockingQueue<Map<String,Object>> acks = new LinkedBlockingQueue<>();
+	private ExecutorService exec = Executors.newFixedThreadPool(1);
+	private Future<?> pF;
+	
+
+	protected final long heartbeat;
 	protected String domainKey;
 	protected String apiKey;
 	protected final String deviceId;
 	protected final String deviceModel;
 	protected final String firmwareVersion;
 	protected final MessageHandler handler;
+	
+	private long lastAckedTime;
+	private long lastSentTime = 0;
+	
 	
 	/**
 	 * 
@@ -61,13 +84,44 @@ public abstract class AbstractPublisher {
 	 * @param firmwareVersion <code> Ex: 1.0.0, 0.0.7, etc...</code>
 	 * @param handler <code>Handler to handle messages from Boodskap platform</code>
 	 */
-	protected AbstractPublisher(String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, MessageHandler handler) {
+	protected AbstractPublisher(String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, long heartbeat, MessageHandler handler) {
 		this.domainKey = domainKey;
 		this.apiKey = apiKey;
 		this.deviceId = deviceId;
 		this.deviceModel = deviceModel;
 		this.firmwareVersion = firmwareVersion;
+		this.heartbeat = heartbeat;
 		this.handler = handler;
+		
+		pF = exec.submit(pinger);
+		
+	}
+	
+	public final void open() throws Exception{
+		doOpen();
+		ping();
+	}
+	
+	public final void close() throws Exception {
+		
+		try {
+			doClose();
+		}finally {
+			
+			if(null != pF) {
+				pF.cancel(true);
+				pF= null;
+			}
+		}
+	}
+	
+	public final void ping() throws Exception {
+		publish(MSG_PING, new HashMap<>());
+	}
+	
+	public final void publish(int messageId, Map<String, Object> json) throws Exception{
+		doPublish(messageId, json);
+		lastSentTime = System.currentTimeMillis();
 	}
 	
 	/**
@@ -76,20 +130,20 @@ public abstract class AbstractPublisher {
 	 * @param json <pre>A Map containing message fields</pre>
 	 * @throws Exception
 	 */
-	public abstract void publish(int messageId, Map<String, Object> json) throws Exception;
+	protected abstract void doPublish(int messageId, Map<String, Object> json) throws Exception;
 	
-	/**
-	 * Acknowledges the received packet
-	 * @param corrId
-	 * @param acked <code>true for success else false</code>
-	 * @throws Exception
-	 */
-	protected abstract void acknowledge(long corrId, boolean acked)throws Exception;
+	protected final void acknowledge(long corrId, boolean acked) throws MqttPersistenceException, JSONException, MqttException {
+		Map<String, Object> map = new HashMap<String, Object>();
+		map.put(P_CORRELATION_ID, corrId);
+		map.put(P_ACK, acked ? 1 : 0);
+		acks.offer(map);
+	}
+
 	
 	/**
 	 * Open connection with server channel
 	 */
-	public abstract void open()throws Exception;
+	protected abstract void doOpen()throws Exception;
 
 	/**
 	 * Check if you are connected
@@ -101,7 +155,7 @@ public abstract class AbstractPublisher {
 	 * Closes the connection
 	 * @throws Exception
 	 */
-	public abstract void close() throws Exception;
+	protected abstract void doClose() throws Exception;
 	
 	public String getDomainKey() {
 		return domainKey;
@@ -118,6 +172,10 @@ public abstract class AbstractPublisher {
 	public void setApiKey(String apiKey) {
 		this.apiKey = apiKey;
 	}
+	
+	public long getLastAckedTime() {
+		return lastAckedTime;
+	}
 
 	/**
 	 * Processed the data received, auto acks with the platform
@@ -129,9 +187,11 @@ public abstract class AbstractPublisher {
 		
 		
 		try {
+
+			lastAckedTime = System.currentTimeMillis();
 			
 			JSONObject json = new JSONObject(new String(raw, offset, length));
-			System.out.format("Command Received: %s\n", json);
+			LOG.info("Command Received: {}", json);
 			
 			JSONObject header = json.getJSONObject("header");
 			JSONObject data = json.getJSONObject("data");
@@ -196,4 +256,41 @@ public abstract class AbstractPublisher {
 		}
 	}
 	
+	private final Runnable pinger = new Runnable() {
+		
+		@Override
+		public void run() {
+
+			while(!Thread.currentThread().isInterrupted()) {
+				try {
+					
+					while(!isConnected()) {
+						Thread.sleep(2000);
+					}
+					
+					Map<String, Object> adata = acks.poll(2, TimeUnit.SECONDS);
+					
+					if(null != adata) {
+						
+						publish(MSG_ACK, adata);
+						
+					}else {
+						
+						if((System.currentTimeMillis()-lastSentTime) >= heartbeat) {
+							ping();
+						}
+						
+					}
+					
+					
+				} catch (Exception e) {
+					if(null != pF) {
+						e.printStackTrace();
+					}
+				}
+			}
+		}
+	};
+
 }
+

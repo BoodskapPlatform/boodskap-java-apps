@@ -42,22 +42,20 @@ public class UDPSender extends AbstractPublisher {
 	
 	protected final String udpHost;
 	protected final int udpPort;
-	protected final long udpHeartbeat;
 	
 	private DatagramSocket socket;
-	private ExecutorService exec = Executors.newFixedThreadPool(2);
+	private ExecutorService exec = Executors.newSingleThreadExecutor();
 
-	private Future<?> rF, pF;
+	private Future<?> rF;
 
 	public UDPSender(String udpHost, int udpPort, long udpHeartbeat, String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, MessageHandler handler) {
-		super(domainKey, apiKey, deviceId, deviceModel, firmwareVersion, handler);
+		super(domainKey, apiKey, deviceId, deviceModel, firmwareVersion, udpHeartbeat, handler);
 		this.udpHost = udpHost;
 		this.udpPort = udpPort;
-		this.udpHeartbeat = udpHeartbeat;
 	}
 
 	@Override
-	public void publish(int messageId, Map<String, Object> json) throws Exception {
+	protected void doPublish(int messageId, Map<String, Object> json) throws Exception {
 		
 		Map<String, Object> map = new HashMap<>();
 		map.put(P_DOMAIN_KEY, domainKey);
@@ -82,39 +80,12 @@ public class UDPSender extends AbstractPublisher {
 		socket.send(pkt);
 	}
 
-	@Override
-	protected void acknowledge(long corrId, boolean acked) throws Exception {
-		
-		Map<String, Object> map = new HashMap<>();
-		map.put(P_DOMAIN_KEY, domainKey);
-		map.put(P_API_KEY, apiKey);
-		map.put(P_MESSAGE_ID, 2);
-		map.put(P_DEVICE_ID, deviceId);
-		map.put(P_DEVICE_MODEL, deviceModel);
-		map.put(P_FIRMWARE_VERSION, firmwareVersion);
-		map.put(P_CORRELATION_ID, corrId);
-		
-		JSONObject header = new JSONObject(map);
-		JSONObject data = new JSONObject();
-		data.put(P_CORRELATION_ID, corrId);
-		data.put(P_ACK, acked ? 1 : 0);
-		JSONObject message = new JSONObject();
-		
-		message.put("header", header);
-		message.put("data", data);
-		
-		byte[] payload = message.toString().getBytes();
-		DatagramPacket pkt = new DatagramPacket(payload, payload.length, new InetSocketAddress(udpHost, udpPort));
-		socket.send(pkt);
-	}
-
 	/**
 	 * Open connection with server channel
 	 */
-	public void open()throws Exception{
+	public void doOpen()throws Exception{
 		if(!isConnected()) {
 			socket = new DatagramSocket(0);
-			pF = exec.submit(pinger);
 			rF = exec.submit(receiver);
 		}
 	}
@@ -131,16 +102,11 @@ public class UDPSender extends AbstractPublisher {
 	 * Closes the connection
 	 * @throws Exception
 	 */
-	public void close() throws Exception{
+	protected void doClose() throws Exception{
 		
 		if(null != rF) {
 			rF.cancel(true);
 			rF= null;
-		}
-		
-		if(null != pF) {
-			pF.cancel(true);
-			pF= null;
 		}
 		
 		if(null != socket && isConnected()) {
@@ -165,27 +131,6 @@ public class UDPSender extends AbstractPublisher {
 					
 				} catch (Exception e) {
 					if(null != rF) {
-						e.printStackTrace();
-					}
-				}
-			}
-		}
-	};
-
-	final Runnable pinger = new Runnable() {
-		
-		@Override
-		public void run() {
-
-			while(!Thread.currentThread().isInterrupted()) {
-				try {
-					
-					publish(MSG_PING, new HashMap<>());
-					
-					Thread.sleep(udpHeartbeat);
-					
-				} catch (Exception e) {
-					if(null != pF) {
 						e.printStackTrace();
 					}
 				}
