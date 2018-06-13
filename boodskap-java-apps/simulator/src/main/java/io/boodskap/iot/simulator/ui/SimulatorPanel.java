@@ -2,6 +2,7 @@ package io.boodskap.iot.simulator.ui;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -178,7 +179,9 @@ public class SimulatorPanel extends JPanel implements TransmitterHandler, Action
 		panel.add(new JLabel("Domain Config"));
 		panel.add(cbxConfig);
 		
-		add(panel, BorderLayout.NORTH);
+		panel.setPreferredSize(new Dimension(1600, 55));
+		
+		add(new JScrollPane(panel), BorderLayout.NORTH);
 
 	}
 

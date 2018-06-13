@@ -2,7 +2,6 @@ package io.boodskap.iot.simulator.ui;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -93,7 +92,7 @@ public class DomainConfigPanel extends JPanel implements ChangeListener, ActionL
 		final int NUM_PAIRS = LABELS.length;
 		
 		JPanel panel = new JPanel(new SpringLayout());
-		panel.setPreferredSize(new Dimension(750, 240));
+		//panel.setPreferredSize(new Dimension(750, 240));
 		panel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.BLACK), "CoAP Settings"));
 		
 		panel.add(new JLabel(LABELS[0], JLabel.TRAILING));
@@ -148,7 +147,7 @@ public class DomainConfigPanel extends JPanel implements ChangeListener, ActionL
 		final int NUM_PAIRS = LABELS.length;
 		
 		JPanel panel = new JPanel(new SpringLayout());
-		panel.setPreferredSize(new Dimension(750, 240));
+		//panel.setPreferredSize(new Dimension(750, 240));
 		panel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.BLACK), "MQTT Settings"));
 		
 		panel.add(new JLabel(LABELS[0], JLabel.TRAILING));
@@ -203,7 +202,7 @@ public class DomainConfigPanel extends JPanel implements ChangeListener, ActionL
 		final int NUM_PAIRS = LABELS.length;
 		
 		JPanel panel = new JPanel(new SpringLayout());
-		panel.setPreferredSize(new Dimension(750, 110));
+		//panel.setPreferredSize(new Dimension(750, 110));
 		panel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.BLACK), "UDP Settings"));
 		
 		panel.add(new JLabel(LABELS[0], JLabel.TRAILING));
@@ -232,7 +231,7 @@ public class DomainConfigPanel extends JPanel implements ChangeListener, ActionL
 		final int NUM_PAIRS = LABELS.length;
 		
 		JPanel panel = new JPanel(new SpringLayout());
-		panel.setPreferredSize(new Dimension(750, 130));
+		//panel.setPreferredSize(new Dimension(750, 150));
 		panel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.BLACK), "Domain Settings"));
 		
 		panel.add(new JLabel(LABELS[0], JLabel.TRAILING));
