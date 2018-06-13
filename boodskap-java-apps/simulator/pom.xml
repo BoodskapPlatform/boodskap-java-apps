@@ -8,7 +8,7 @@
 	<parent>
 		<groupId>io.boodskap.iot</groupId>
 		<artifactId>boodskap-java-apps</artifactId>
-		<version>1.0.0</version>
+		<version>1.0.1</version>
 	</parent>
 
 	<artifactId>simulator</artifactId>
@@ -30,7 +30,7 @@
 		<dependency>
 			<groupId>io.boodskap.iot</groupId>
 			<artifactId>java-commons</artifactId>
-			<version>1.0.0</version>
+			<version>1.0.1</version>
 		</dependency>
 		<dependency>
 			<groupId>org.quartz-scheduler</groupId>
@@ -115,7 +115,7 @@
 					<archive>
 						<manifest>
 							<addClasspath>true</addClasspath>
-							<mainClass>io.boodskap.iot.simulator.App</mainClass>
+							<mainClass>io.boodskap.iot.simulator.SimulatorApplication</mainClass>
 						</manifest>
 					</archive>
 					<descriptorRefs>

@@ -6,7 +6,7 @@
 	<parent>
 		<groupId>io.boodskap.iot</groupId>
 		<artifactId>boodskap-java-apps</artifactId>
-		<version>1.0.0</version>
+		<version>1.0.1</version>
 	</parent>
 	<artifactId>camera</artifactId>
 	<name>camera</name>
