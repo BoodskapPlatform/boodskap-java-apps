@@ -13,7 +13,9 @@ import javax.swing.UIManager;
 import io.boodskap.iot.simulator.ui.MainPanel;
 
 /**
- * Hello world!
+ * SimulatorApplication
+ *
+ * Implementation for Simulation
  *
  */
 public class SimulatorApplication {
