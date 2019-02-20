@@ -18,7 +18,7 @@ public class DomainConfig implements Serializable{
 	private boolean udpEnabled = true;
 	private boolean mqttEnabled = true;
 	private boolean coapEnabled = true;
-	private String udpHost = "api.boodskap.io";
+	private String udpHost = "udp.boodskap.io";
 	private int udpPort = 5555;
 	private String mqttHost = "mqtt.boodskap.io";
 	private int mqttPort = 1883;
