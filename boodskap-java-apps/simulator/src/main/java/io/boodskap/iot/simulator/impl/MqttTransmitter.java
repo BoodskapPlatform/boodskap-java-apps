@@ -53,7 +53,7 @@ public class MqttTransmitter extends AbstractTransmitter implements  MessageHand
 		try {
 			handler.message(Type.CLIENT, json);
 			Map<String, Object> map = ThreadContext.jsonToMap(json);
-			sender.sendMessage(messageId, map, 0, false);
+			sender.sendMessage(messageId, map, 2, false);
 		} catch (Exception e) {
 			handler.message(Type.CLIENT, ExceptionUtils.getStackTrace(e));
 		}
