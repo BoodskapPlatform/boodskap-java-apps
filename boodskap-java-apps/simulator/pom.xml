@@ -12,6 +12,7 @@
 	</parent>
 
 	<artifactId>simulator</artifactId>
+	<version>1.0.2</version>
 	<name>simulator</name>
 	<url>http://maven.apache.org</url>
 
