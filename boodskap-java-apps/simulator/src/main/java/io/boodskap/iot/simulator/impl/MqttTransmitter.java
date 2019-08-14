@@ -25,7 +25,7 @@ public class MqttTransmitter extends AbstractTransmitter implements  MessageHand
 			
 			super.init(cfg, handler);
 			final String url = String.format("tcp://%s:%d", dCfg.getMqttHost(), dCfg.getMqttPort());
-			sender = new MqttSender(url, 180000, dCfg.getDomainKey(), dCfg.getApiKey(), cfg.getDeviceId(), cfg.getDeviceModel(), cfg.getFirmwareVersion(), this);
+			sender = new MqttSender(url, cfg.getQos(), 180000, dCfg.getDomainKey(), dCfg.getApiKey(), cfg.getDeviceId(), cfg.getDeviceModel(), cfg.getFirmwareVersion(), this);
 			sender.open();
 			handler.message(Type.TRANSMITTER, "Initialized");
 			

@@ -43,6 +43,7 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 
 	private static final Logger LOG = LoggerFactory.getLogger(MqttSender.class);
 
+	private final int qos;
 	protected final String mqttUrl;
 	private final String clientId;
 	private final String userName;
@@ -60,8 +61,9 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 	 * @param deviceModel <code> Ex: RaspCAM, ArduCAM, etc...</code>
 	 * @param firmwareVersion <code> Ex: 1.0.0, 0.0.7, etc...</code>
 	 */
-	public MqttSender(String mqttUrl, long heartbeat, String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, MessageHandler handler) {
+	public MqttSender(String mqttUrl, int qos, long heartbeat, String domainKey, String apiKey, String deviceId, String deviceModel, String firmwareVersion, MessageHandler handler) {
 		super(domainKey, apiKey, deviceId, deviceModel, firmwareVersion, heartbeat, handler);
+		this.qos = qos;
 		this.mqttUrl = mqttUrl;
 		clientId = String.format("DEV_%s", deviceId);
 		userName = String.format("DEV_%s", domainKey);
@@ -129,7 +131,7 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 	 * @throws Exception
 	 */
 	protected void doPublish(int messageId, Map<String, Object> json) throws MqttPersistenceException, JSONException, MqttException {
-		sendMessage(messageId, json, 0, false);
+		sendMessage(messageId, json, qos, false);
 	}
 	
 	/**
@@ -145,13 +147,13 @@ public class MqttSender extends AbstractPublisher implements IMqttMessageListene
 	public void sendMessage(int messageId, Map<String, Object> json, int qos, boolean retained) throws JSONException, MqttPersistenceException, MqttException {
 		switch(messageId) {
 		case MSG_PING:
-			LOG.info("Sending ping");
+			LOG.info("Sending ping QoS[{}]", qos);
 			break;
 		case MSG_ACK:
-			LOG.info("Sending ack {}", json);
+			LOG.info("Sending ack QoS[{}] {}", qos, json);
 			break;
 		default:
-			LOG.info("Sending message id:{} {}", messageId, json);
+			LOG.info("Sending message QoS[{}] id:{} {}", qos, messageId, json);
 			break;
 		}
 		JSONObject data = new JSONObject(json);
