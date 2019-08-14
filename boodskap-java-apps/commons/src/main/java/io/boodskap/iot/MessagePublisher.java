@@ -39,7 +39,7 @@ public class MessagePublisher<T extends BaseConfig> {
 			publisher = new HttpSender(c.getHttpUrl(), c.getHeartbeat(), c.getDomainKey(), c.getApiKey(), c.getDeviceId(), deviceModel, firmwareVersion, handler);
 			break;
 		case MQTT:
-			publisher = new MqttSender(c.getMqttUrl(), c.getHeartbeat(), c.getDomainKey(), c.getApiKey(), c.getDeviceId(), deviceModel, firmwareVersion, handler);
+			publisher = new MqttSender(c.getMqttUrl(), c.getMqttQos(), c.getHeartbeat(), c.getDomainKey(), c.getApiKey(), c.getDeviceId(), deviceModel, firmwareVersion, handler);
 			break;
 		case UDP:
 			publisher = new UDPSender(c.getUdpHost(), c.getUdpPort(), c.getHeartbeat(),  c.getDomainKey(), c.getApiKey(), c.getDeviceId(), deviceModel, firmwareVersion, handler);

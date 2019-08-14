@@ -22,6 +22,7 @@ public class BaseConfig implements Serializable {
 	private String deviceId="";
 	private PublishChannel publisher = PublishChannel.MQTT;
 	private String mqttUrl = "tcp://mqtt.boodskap.io:1883";
+	private int mqttQos = 2;
 	private String udpHost = "udp.boodskap.io";
 	private int udpPort = 5555;
 	private long heartbeat = 30000;
@@ -69,6 +70,7 @@ public class BaseConfig implements Serializable {
 		if(null == deviceId || deviceId.trim().equals("")) throw new IllegalArgumentException("deviceId required");
 		if(null == mqttUrl || mqttUrl.trim().equals("")) throw new IllegalArgumentException("mqttUrl required");
 		if(null == udpHost || udpHost.trim().equals("")) throw new IllegalArgumentException("udpHost required");
+		if(mqttQos < 0 || mqttQos > 2) throw new IllegalArgumentException("mqttQos must be [0, 1, 2]");
 		if(udpPort <= 0) throw new IllegalArgumentException("udpPort must be > 0");
 		if(heartbeat < 1000) throw new IllegalArgumentException("heartbeat must be >= 1000");
 		if(null == httpUrl || httpUrl.trim().equals("")) throw new IllegalArgumentException("httpUrl required");
@@ -114,6 +116,14 @@ public class BaseConfig implements Serializable {
 
 	public void setMqttUrl(String mqttUrl) {
 		this.mqttUrl = mqttUrl;
+	}
+
+	public int getMqttQos() {
+		return mqttQos;
+	}
+
+	public void setMqttQos(int mqttQos) {
+		this.mqttQos = mqttQos;
 	}
 
 	public String getUdpHost() {
