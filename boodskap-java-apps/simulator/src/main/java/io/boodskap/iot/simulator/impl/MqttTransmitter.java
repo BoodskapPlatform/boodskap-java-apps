@@ -51,7 +51,24 @@ public class MqttTransmitter extends AbstractTransmitter implements  MessageHand
 	@Override
 	public void send(int messageId, String json) {
 		try {
-			handler.message(Type.CLIENT, json);
+			
+			JSONObject message = new JSONObject();
+			JSONObject header = new JSONObject();
+			JSONObject data = new JSONObject(json);
+			
+			header.put("key", dCfg.getDomainKey());
+			header.put("api", dCfg.getApiKey());
+			header.put("did", sCfg.getDeviceId());
+			header.put("dmdl", sCfg.getDeviceModel());
+			header.put("fwver", sCfg.getFirmwareVersion());
+			header.put("mid", messageId);
+			
+			message.put("header", header);
+			message.put("data", data);
+			
+			String value = message.toString();
+			
+			handler.message(Type.CLIENT, value);
 			Map<String, Object> map = ThreadContext.jsonToMap(json);
 			sender.sendMessage(messageId, map, 2, false);
 		} catch (Exception e) {

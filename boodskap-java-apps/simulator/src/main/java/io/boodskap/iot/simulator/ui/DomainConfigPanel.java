@@ -11,6 +11,7 @@ import java.io.FileNotFoundException;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -41,6 +42,7 @@ public class DomainConfigPanel extends JPanel implements ChangeListener, ActionL
 	private JTextField txtCoapHost, txtCoapPort, txtCoapCaCertFile, txtCoapClientCertFile, txtCoapClientKeyFile, txtCoapClientKeyPassword;
 	private JCheckBox chxCoap, chxMqtt, chxUdp, chxCoapSsl;
 	private JButton cmdActivate, cmdSave;
+	private JComboBox<String> cbxVersions;
 	private JPanel center = new JPanel();
 
 	public DomainConfigPanel(final DomainConfig cfg) {
@@ -70,7 +72,10 @@ public class DomainConfigPanel extends JPanel implements ChangeListener, ActionL
 		
 		cmdActivate = new JButton("Activate");
 		cmdSave = new JButton("Save");
+		cbxVersions = new JComboBox<>(new String[] {"Version 1.x", "Version 2.x", "Version 3.x"});
+		cbxVersions.setSelectedIndex(2);
 		
+		panel.add(cbxVersions);
 		panel.add(cmdActivate);
 		panel.add(cmdSave);
 		
@@ -80,6 +85,7 @@ public class DomainConfigPanel extends JPanel implements ChangeListener, ActionL
 			ex.printStackTrace();
 		}
 		
+		cbxVersions.addActionListener(this);
 		cmdActivate.addActionListener(this);
 		cmdSave.addActionListener(this);
 		
@@ -310,6 +316,12 @@ public class DomainConfigPanel extends JPanel implements ChangeListener, ActionL
 		
 		try {
 			
+			if(e.getSource() == cbxVersions) {
+				cfg.setVersion(cbxVersions.getSelectedIndex()+1);
+				return;
+			}
+			
+			cfg.setVersion(cbxVersions.getSelectedIndex()+1);
 			cfg.setLabel(txtLabel.getText());
 			cfg.setDomainKey(txtDomainKey.getText());
 			cfg.setApiKey(txtApiKey.getText());

@@ -11,6 +11,7 @@ public class DomainConfig implements Serializable{
 	static final String BASE_PATH = String.format("%s%s.boodskap%scerts", System.getProperty("user.home"), File.separator, File.separator);
 	
 	private String id = UUID.randomUUID().toString();
+	private int version = 2;
 	private String label = id;
 	private String domainKey;
 	private String apiKey;
@@ -46,6 +47,14 @@ public class DomainConfig implements Serializable{
 
 	public void setId(String id) {
 		this.id = id;
+	}
+
+	public int getVersion() {
+		return version;
+	}
+
+	public void setVersion(int version) {
+		this.version = version;
 	}
 
 	public String getLabel() {
@@ -278,6 +287,7 @@ public class DomainConfig implements Serializable{
 		result = prime * result + ((udpHost == null) ? 0 : udpHost.hashCode());
 		result = prime * result + udpPort;
 		result = prime * result + ((userId == null) ? 0 : userId.hashCode());
+		result = prime * result + version;
 		return result;
 	}
 
@@ -395,6 +405,8 @@ public class DomainConfig implements Serializable{
 			if (other.userId != null)
 				return false;
 		} else if (!userId.equals(other.userId))
+			return false;
+		if (version != other.version)
 			return false;
 		return true;
 	}
